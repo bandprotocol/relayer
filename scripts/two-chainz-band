@@ -62,12 +62,15 @@ make install
 
 echo "Generating rly configurations..."
 rly config init
-rly config add-dir configs/band/
+rly config add-chains configs/band/chains
 
 SEED0="smile stem oven genius cave resource better lunar nasty moon company ridge brass rather supply used horn three panic put venue analyst leader comic"
 SEED1=$(jq -r '.mnemonic' $CHAIN_DATA/consumer/key_seed.json)
 echo "Key $(rly keys restore bandchain bandkey "$SEED0" --coin-type 494) imported from bandchain to relayer..."
 echo "Key $(rly keys restore consumer conskey "$SEED1") imported from consumer to relayer..."
+
+rly config add-paths configs/band/paths
+
 echo "Creating light clients..."
 sleep 3
 rly light init bandchain -f

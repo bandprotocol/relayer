@@ -5,7 +5,7 @@
   "account-prefix": "cosmos",
   "gas": 200000,
   "gas-adjustment": 1.5,
-  "gas-prices": "0.025stake",
+  "gas-prices": "0.0stake",
   "default-denom": "stake",
   "trusting-period": "336h"
 }

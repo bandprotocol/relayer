@@ -6,7 +6,7 @@
     "channel-id": "",
     "port-id": "oracle",
     "version": "ics20-1",
-    "order": "UNORDERED"
+    "order": "unordered"
   },
   "dst": {
     "chain-id": "consumer",
@@ -15,7 +15,7 @@
     "channel-id": "",
     "port-id": "consuming",
     "version": "ics20-1",
-    "order": "UNORDERED"
+    "order": "unordered"
   },
   "strategy": { "type": "naive" }
 }
