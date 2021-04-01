@@ -491,12 +491,19 @@ func (nrs *NaiveStrategy) RelayPackets(src, dst *Chain, sp *RelaySequences) erro
 		MaxMsgLength: nrs.MaxMsgLength,
 	}
 
+	srcNotFoundSeqs := make([]uint64, 0)
 	// add messages for sequences on src
 	for _, seq := range sp.Src {
 		// Query src for the sequence number to get type of packet
 		recvMsgs, timeoutMsgs, err := relayPacketFromSequence(src, dst, seq)
 		if err != nil {
 			return err
+		}
+
+		// if both return types are nil, then the seq cannot be found in any txs
+		// save seq into a list to search in endblocks instead
+		if recvMsgs == nil && timeoutMsgs == nil {
+			srcNotFoundSeqs = append(srcNotFoundSeqs, seq)
 		}
 
 		// depending on the type of message to be relayed, we need to
@@ -509,13 +516,29 @@ func (nrs *NaiveStrategy) RelayPackets(src, dst *Chain, sp *RelaySequences) erro
 			msgs.Src = append(msgs.Src, timeoutMsgs...)
 		}
 	}
+	if len(srcNotFoundSeqs) != 0 {
+		// search for packets in endblocks
+		recvMsgs, timeoutMsgs, err := relayEndBlockPacketFromSequences(src, dst, srcNotFoundSeqs)
+		if err != nil {
+			return err
+		}
+		msgs.Dst = append(msgs.Dst, recvMsgs...)
+		msgs.Src = append(msgs.Src, timeoutMsgs...)
+	}
 
+	dstNotFoundSeqs := make([]uint64, 0)
 	// add messages for sequences on dst
 	for _, seq := range sp.Dst {
 		// Query dst for the sequence number to get type of packet
 		recvMsgs, timeoutMsgs, err := relayPacketFromSequence(dst, src, seq)
 		if err != nil {
 			return err
+		}
+
+		// if both return types are nil, then the seq cannot be found in any txs.
+		// save seq into a list to search in endblocks instead
+		if recvMsgs == nil && timeoutMsgs == nil {
+			dstNotFoundSeqs = append(dstNotFoundSeqs, seq)
 		}
 
 		// depending on the type of message to be relayed, we need to
@@ -527,6 +550,15 @@ func (nrs *NaiveStrategy) RelayPackets(src, dst *Chain, sp *RelaySequences) erro
 		if timeoutMsgs != nil {
 			msgs.Dst = append(msgs.Dst, timeoutMsgs...)
 		}
+	}
+	if len(dstNotFoundSeqs) != 0 {
+		// search for packets in endblocks
+		recvMsgs, timeoutMsgs, err := relayEndBlockPacketFromSequences(dst, src, dstNotFoundSeqs)
+		if err != nil {
+			return err
+		}
+		msgs.Src = append(msgs.Src, recvMsgs...)
+		msgs.Dst = append(msgs.Dst, timeoutMsgs...)
 	}
 
 	if !msgs.Ready() {
@@ -567,6 +599,152 @@ func (nrs *NaiveStrategy) RelayPackets(src, dst *Chain, sp *RelaySequences) erro
 	return nil
 }
 
+// relayEndBlockPacketFromSequences relays packets in endblock with
+// given seqs on src, and returns recvPacketmsgs, timeoutPacketmsgs and error
+func relayEndBlockPacketFromSequences(src, dst *Chain, seqs []uint64) ([]sdk.Msg, []sdk.Msg, error) {
+	var (
+		rcvMsgs     []sdk.Msg
+		timeoutMsgs []sdk.Msg
+	)
+
+	rcvPackets, timeoutPackets, err := relayPacketsFromEndBlock(src, dst, seqs)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, pkt := range rcvPackets {
+		msgs, err := dst.MsgRelayRecvPacket(src, pkt.(*relayMsgRecvPacket))
+		if err != nil {
+			return nil, nil, err
+		}
+		rcvMsgs = append(rcvMsgs, msgs...)
+	}
+
+	for _, pkt := range timeoutPackets {
+		msgs, err := src.MsgRelayTimeout(dst, pkt.(*relayMsgTimeout))
+		if err != nil {
+			return nil, nil, err
+		}
+		timeoutMsgs = append(timeoutMsgs, msgs...)
+	}
+
+	return rcvMsgs, timeoutMsgs, nil
+}
+
+func relayPacketsFromEndBlock(src, dst *Chain, seqs []uint64) ([]relayPacket, []relayPacket, error) {
+	// TODO: fix the hardcode number of blocks
+	blocks, err := retrieveBlocks(src, int64(src.MustGetLatestLightHeight()), 1000)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		rcvPackets     []relayPacket
+		timeoutPackets []relayPacket
+	)
+
+	srcPE := src.PathEnd
+	dstPE := dst.PathEnd
+
+	for _, s := range seqs {
+		foundSeq := false
+		for _, b := range blocks {
+			for _, e := range b.EndBlockEvents {
+				if e.Type == spTag {
+					// NOTE: Src and Dst are switched here
+					rp := &relayMsgRecvPacket{pass: false}
+					for _, p := range e.Attributes {
+						if string(p.Key) == srcChanTag {
+							if string(p.Value) != srcPE.ChannelID {
+								rp.pass = true
+								continue
+							}
+						}
+						if string(p.Key) == dstChanTag {
+							if string(p.Value) != dstPE.ChannelID {
+								rp.pass = true
+								continue
+							}
+						}
+						if string(p.Key) == srcPortTag {
+							if string(p.Value) != srcPE.PortID {
+								rp.pass = true
+								continue
+							}
+						}
+						if string(p.Key) == dstPortTag {
+							if string(p.Value) != dstPE.PortID {
+								rp.pass = true
+								continue
+							}
+						}
+						if string(p.Key) == dataTag {
+							rp.packetData = p.Value
+						}
+						if string(p.Key) == toHeightTag {
+							timeout, _ := strconv.ParseUint(strings.Split(string(p.Value), "-")[1], 10, 64)
+							rp.timeout = timeout
+						}
+						if string(p.Key) == toTSTag {
+							timeout, _ := strconv.ParseUint(string(p.Value), 10, 64)
+							rp.timeoutStamp = timeout
+						}
+						if string(p.Key) == seqTag {
+							seq, _ := strconv.ParseUint(string(p.Value), 10, 64)
+							rp.seq = seq
+							if seq == s {
+								foundSeq = true
+							}
+						}
+					}
+
+					if foundSeq {
+						// fetch the header which represents a block produced on destination
+						block, err := src.GetIBCUpdateHeader(dst)
+						if err != nil {
+							return nil, nil, err
+						}
+
+						switch {
+						// If the packet has a timeout height, and it has been reached, return a timeout packet
+						case rp.timeout != 0 && block.GetHeight().GetRevisionHeight() >= rp.timeout:
+							timeoutPackets = append(timeoutPackets, rp.timeoutPacket())
+						// If the packet has a timeout timestamp and it has been reached, return a timeout packet
+						case rp.timeoutStamp != 0 && block.GetTime().UnixNano() >= int64(rp.timeoutStamp):
+							timeoutPackets = append(timeoutPackets, rp.timeoutPacket())
+						// If the packet matches the relay constraints relay it as a MsgReceivePacket
+						case !rp.pass:
+							rcvPackets = append(rcvPackets, rp)
+						}
+						break
+					}
+				}
+			}
+			if foundSeq {
+				break
+			}
+		}
+		if !foundSeq {
+			src.Log(fmt.Sprintf("! [%s] cannot find sequence %d from the recent 1000 endblocks.", src.ChainID, s))
+		}
+	}
+	return rcvPackets, timeoutPackets, nil
+}
+
+// retrieveBlocks retrives at most `limit` blocks from the given chain
+func retrieveBlocks(c *Chain, height, limit int64) ([]*ctypes.ResultBlockResults, error) {
+	var blocks []*ctypes.ResultBlockResults
+	for i := height; i >= 1 && i >= height-limit+1; i-- {
+		b, err := c.QueryBlockResults(i)
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, b)
+	}
+	return blocks, nil
+}
+
 // relayPacketFromSequence relays a packet with a given seq on src
 // and returns recvPacket msgs, timeoutPacketmsgs and error
 func relayPacketFromSequence(src, dst *Chain, seq uint64) ([]sdk.Msg, []sdk.Msg, error) {
@@ -575,7 +753,8 @@ func relayPacketFromSequence(src, dst *Chain, seq uint64) ([]sdk.Msg, []sdk.Msg,
 	case err != nil:
 		return nil, nil, err
 	case len(txs) == 0:
-		return nil, nil, fmt.Errorf("no transactions returned with query")
+		// NOTE: search the given seq in endblock instead
+		return nil, nil, nil
 	case len(txs) > 1:
 		return nil, nil, fmt.Errorf("more than one transaction returned with query")
 	}
