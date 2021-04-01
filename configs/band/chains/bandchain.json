@@ -1,0 +1,11 @@
+{
+  "key": "bandkey",
+  "chain-id": "bandchain",
+  "rpc-addr": "http://localhost:26657",
+  "account-prefix": "band",
+  "gas": 200000,
+  "gas-adjustment": 1.5,
+  "gas-prices": "0uband",
+  "default-denom": "uband",
+  "trusting-period": "336h"
+}

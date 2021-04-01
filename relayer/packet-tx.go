@@ -15,7 +15,8 @@ func (c *Chain) SendTransferMsg(dst *Chain, amount sdk.Coin, dstAddr string, toH
 		timeoutTimestamp uint64
 	)
 
-	h, err := dst.UpdateLightWithHeader()
+	// get header representing dst to check timeouts
+	h, err := dst.GetIBCUpdateHeader(c)
 	if err != nil {
 		return err
 	}

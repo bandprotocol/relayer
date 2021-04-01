@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/cosmos/cosmos-sdk/client/flags"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/relayer/relayer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -51,7 +52,8 @@ func configCmd() *cobra.Command {
 	cmd.AddCommand(
 		configShowCmd(),
 		configInitCmd(),
-		configAddDirCmd(),
+		configAddChainsCmd(),
+		configAddPathsCmd(),
 	)
 
 	return cmd
@@ -170,29 +172,48 @@ $ %s cfg i`, appName, defaultHome, appName)),
 	return cmd
 }
 
-func configAddDirCmd() *cobra.Command {
+func configAddChainsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "add-dir [dir]",
-		Aliases: []string{"ad"},
-		Args:    cobra.ExactArgs(1),
-		Short: `Add new chains and paths to the configuration file from a
-		 directory full of chain and path configuration, useful for adding testnet configurations`,
+		Use:  "add-chains [/path/to/chains/]",
+		Args: cobra.ExactArgs(1),
+		Short: `Add new chains to the configuration file from a
+		 directory full of chain configurations, useful for adding testnet configurations`,
 		Example: strings.TrimSpace(fmt.Sprintf(`
-$ %s config add-dir configs/
-$ %s cfg ad configs/`, appName, appName)),
+$ %s config add-chains configs/chains`, appName)),
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			var out *Config
-			if out, err = cfgFilesAdd(args[0]); err != nil {
+			if out, err = cfgFilesAddChains(args[0]); err != nil {
 				return err
 			}
-			return overWriteConfig(cmd, out)
+			return overWriteConfig(out)
 		},
 	}
 
 	return cmd
 }
 
-func cfgFilesAdd(dir string) (cfg *Config, err error) {
+func configAddPathsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:  "add-paths [/path/to/paths/]",
+		Args: cobra.ExactArgs(1),
+		//nolint:lll
+		Short: `Add new paths to the configuration file from a directory full of path configurations, useful for adding testnet configurations. 
+		Chain configuration files must be added before calling this command.`,
+		Example: strings.TrimSpace(fmt.Sprintf(`
+$ %s config add-paths configs/paths`, appName)),
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			var out *Config
+			if out, err = cfgFilesAddPaths(args[0]); err != nil {
+				return err
+			}
+			return overWriteConfig(out)
+		},
+	}
+
+	return cmd
+}
+
+func cfgFilesAddChains(dir string) (cfg *Config, err error) {
 	dir = path.Clean(dir)
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
@@ -209,60 +230,71 @@ func cfgFilesAdd(dir string) (cfg *Config, err error) {
 
 		byt, err := ioutil.ReadFile(pth)
 		if err != nil {
-			fmt.Printf("failed to read file %s, skipping...\n", pth)
-			continue
+			return nil, fmt.Errorf("failed to read file %s: %w", pth, err)
 		}
 
 		if err = json.Unmarshal(byt, c); err != nil {
-			fmt.Printf("failed to unmarshal file %s, skipping...\n", pth)
-			continue
-		}
-
-		if c.ChainID == "" && c.Key == "" && c.RPCAddr == "" {
-			p := &relayer.Path{}
-			if err = json.Unmarshal(byt, p); err != nil {
-				fmt.Printf("failed to unmarshal file %s, skipping...\n", pth)
-				continue
-			}
-
-			// In the case that order isn't added to the path, add it manually
-			if p.Src.Order == "" || p.Dst.Order == "" {
-				p.Src.Order = defaultOrder
-				p.Dst.Order = defaultOrder
-			}
-
-			// If the version isn't added to the path, add it manually
-			if p.Src.Version == "" {
-				p.Src.Version = defaultVersion
-			}
-			if p.Dst.Version == "" {
-				p.Dst.Version = defaultVersion
-			}
-
-			pthName := strings.Split(f.Name(), ".")[0]
-			if err = config.ValidatePath(p); err != nil {
-				fmt.Printf("%s: %s\n", pth, err.Error())
-				continue
-			}
-			if err = cfg.AddPath(pthName, p); err != nil {
-				fmt.Printf("%s: %s\n", pth, err.Error())
-				continue
-			}
-
-			// For now, we assume that all chain files must have same filename as chain-id
-			// this is to ensure non-chain files (global config) does not get parsed into chain struct.
-			if c.ChainID != pthName {
-				fmt.Printf("Skipping non chain file: %s\n", f.Name())
-				continue
-			}
+			return nil, fmt.Errorf("failed to unmarshal file %s: %w", pth, err)
 		}
 
 		if err = cfg.AddChain(c); err != nil {
-			fmt.Printf("%s: %s\n", pth, err.Error())
-			continue
+			return nil, fmt.Errorf("failed to add chain%s: %w", pth, err)
 		}
 		fmt.Printf("added chain %s...\n", c.ChainID)
 	}
+	return cfg, nil
+}
+
+func cfgFilesAddPaths(dir string) (cfg *Config, err error) {
+	dir = path.Clean(dir)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	cfg = config
+	for _, f := range files {
+		pth := fmt.Sprintf("%s/%s", dir, f.Name())
+		if f.IsDir() {
+			fmt.Printf("directory at %s, skipping...\n", pth)
+			continue
+		}
+
+		byt, err := ioutil.ReadFile(pth)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file %s: %w", pth, err)
+		}
+
+		p := &relayer.Path{}
+		if err = json.Unmarshal(byt, p); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal file %s: %w", pth, err)
+		}
+
+		// In the case that order isn't added to the path, add it manually
+		if p.Src.Order == "" || p.Dst.Order == "" {
+			p.Src.Order = defaultOrder
+			p.Dst.Order = defaultOrder
+		}
+
+		// If the version isn't added to the path, add it manually
+		if p.Src.Version == "" {
+			p.Src.Version = defaultVersion
+		}
+		if p.Dst.Version == "" {
+			p.Dst.Version = defaultVersion
+		}
+
+		pthName := strings.Split(f.Name(), ".")[0]
+		if err = config.ValidatePath(p); err != nil {
+			return nil, fmt.Errorf("failed to validate path %s: %w", pth, err)
+		}
+
+		if err = cfg.AddPath(pthName, p); err != nil {
+			return nil, fmt.Errorf("failed to add path %s: %w", pth, err)
+		}
+
+		fmt.Printf("added path %s...\n", pthName)
+	}
+
 	return cfg, nil
 }
 
@@ -315,6 +347,7 @@ func defaultConfig() []byte {
 
 // GlobalConfig describes any global relayer settings
 type GlobalConfig struct {
+	APIListenPort  string `yaml:"api-listen-addr" json:"api-listen-addr"`
 	Timeout        string `yaml:"timeout" json:"timeout"`
 	LightCacheSize int    `yaml:"light-cache-size" json:"light-cache-size"`
 }
@@ -322,6 +355,7 @@ type GlobalConfig struct {
 // newDefaultGlobalConfig returns a global config with defaults set
 func newDefaultGlobalConfig() GlobalConfig {
 	return GlobalConfig{
+		APIListenPort:  ":5183",
 		Timeout:        "10s",
 		LightCacheSize: 20,
 	}
@@ -329,6 +363,9 @@ func newDefaultGlobalConfig() GlobalConfig {
 
 // AddChain adds an additional chain to the config
 func (c *Config) AddChain(chain *relayer.Chain) (err error) {
+	if chain.ChainID == "" {
+		return fmt.Errorf("chain ID cannot be empty")
+	}
 	chn, err := c.Chains.Get(chain.ChainID)
 	if chn == nil || err == nil {
 		return fmt.Errorf("chain with ID %s already exists in config", chain.ChainID)
@@ -337,9 +374,75 @@ func (c *Config) AddChain(chain *relayer.Chain) (err error) {
 	return nil
 }
 
+func checkPathConflict(pathID, fieldName, oldP, newP string) (err error) {
+	if oldP != "" && oldP != newP {
+		return fmt.Errorf(
+			"path with ID %s and conflicting %s (%s) already exists",
+			pathID, fieldName, oldP,
+		)
+	}
+	return nil
+}
+
+func checkPathEndConflict(pathID, direction string, oldPe, newPe *relayer.PathEnd) (err error) {
+	if err = checkPathConflict(
+		pathID, direction+" chain ID",
+		oldPe.ChainID, newPe.ChainID); err != nil {
+		return err
+	}
+	if err = checkPathConflict(
+		pathID, direction+" client ID",
+		oldPe.ClientID, newPe.ClientID); err != nil {
+		return err
+	}
+	if err = checkPathConflict(
+		pathID, direction+" connection ID",
+		oldPe.ConnectionID, newPe.ConnectionID); err != nil {
+		return err
+	}
+	if err = checkPathConflict(
+		pathID, direction+" port ID",
+		oldPe.PortID, newPe.PortID); err != nil {
+		return err
+	}
+	if err = checkPathConflict(
+		pathID, direction+" order",
+		strings.ToLower(oldPe.Order), strings.ToLower(newPe.Order)); err != nil {
+		return err
+	}
+	if err = checkPathConflict(
+		pathID, direction+" version",
+		oldPe.Version, newPe.Version); err != nil {
+		return err
+	}
+	if err = checkPathConflict(
+		pathID, direction+" channel ID",
+		oldPe.ChannelID, newPe.ChannelID); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddPath adds an additional path to the config
 func (c *Config) AddPath(name string, path *relayer.Path) (err error) {
-	return c.Paths.Add(name, path)
+	// Check if the path does not yet exist.
+	oldPath, err := c.Paths.Get(name)
+	if err != nil {
+		return c.Paths.Add(name, path)
+	}
+	// Now check if the update would cause any conflicts.
+	if err = checkPathEndConflict(name, "source", oldPath.Src, path.Src); err != nil {
+		return err
+	}
+	if err = checkPathEndConflict(name, "destination", oldPath.Dst, path.Dst); err != nil {
+		return err
+	}
+	if err = checkPathConflict(name, "strategy type", oldPath.Strategy.Type, path.Strategy.Type); err != nil {
+		return err
+	}
+	// Update the existing path.
+	*oldPath = *path
+	return nil
 }
 
 // DeleteChain removes a chain from the config
@@ -407,13 +510,8 @@ func initConfig(cmd *cobra.Command) error {
 	return nil
 }
 
-func overWriteConfig(cmd *cobra.Command, cfg *Config) error {
-	home, err := cmd.Flags().GetString(flags.FlagHome)
-	if err != nil {
-		return err
-	}
-
-	cfgPath := path.Join(home, "config", "config.yaml")
+func overWriteConfig(cfg *Config) (err error) {
+	cfgPath := path.Join(homePath, "config", "config.yaml")
 	if _, err = os.Stat(cfgPath); err == nil {
 		viper.SetConfigFile(cfgPath)
 		if err = viper.ReadInConfig(); err == nil {
@@ -448,10 +546,10 @@ func (c *Config) ValidatePath(p *relayer.Path) (err error) {
 		return fmt.Errorf("source must specify a version")
 	}
 	if err = c.ValidatePathEnd(p.Src); err != nil {
-		return err
+		return sdkerrors.Wrapf(err, "chain %s failed path validation", p.Src.ChainID)
 	}
 	if err = c.ValidatePathEnd(p.Dst); err != nil {
-		return err
+		return sdkerrors.Wrapf(err, "chain %s failed path validation", p.Dst.ChainID)
 	}
 	if _, err = p.GetStrategy(); err != nil {
 		return err
@@ -471,6 +569,17 @@ func (c *Config) ValidatePathEnd(pe *relayer.PathEnd) error {
 
 	chain, err := c.Chains.Get(pe.ChainID)
 	if err != nil {
+		return err
+	}
+
+	// if the identifiers are empty, don't do any validation
+	if pe.ClientID == "" && pe.ConnectionID == "" && pe.ChannelID == "" {
+		return nil
+	}
+
+	// NOTE: this is just to do validation, the path
+	// is not written to the config file
+	if err = chain.SetPath(pe); err != nil {
 		return err
 	}
 

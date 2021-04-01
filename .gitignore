@@ -1,3 +1,4 @@
+.DS_Store
 build/
 data/
 coverage.out
@@ -7,3 +8,6 @@ nchainz/
 .idea/
 .csv
 chain-code/
+two-chains/ibc-*
+two-chains/.relayer
+two-chains/*.log

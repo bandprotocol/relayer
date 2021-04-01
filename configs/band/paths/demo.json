@@ -1,0 +1,21 @@
+{
+  "src": {
+    "chain-id": "bandchain",
+    "client-id": "",
+    "connection-id": "",
+    "channel-id": "",
+    "port-id": "oracle",
+    "version": "ics20-1",
+    "order": "unordered"
+  },
+  "dst": {
+    "chain-id": "consumer",
+    "client-id": "",
+    "connection-id": "",
+    "channel-id": "",
+    "port-id": "consuming",
+    "version": "ics20-1",
+    "order": "unordered"
+  },
+  "strategy": { "type": "naive" }
+}

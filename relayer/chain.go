@@ -43,6 +43,9 @@ var (
 	rtyAtt    = retry.Attempts(rtyAttNum)
 	rtyDel    = retry.Delay(time.Millisecond * 400)
 	rtyErr    = retry.LastErrorOnly(true)
+
+	AllowUpdateAfterExpiry       = true
+	AllowUpdateAfterMisbehaviour = true
 )
 
 // Chain represents the necessary data for connecting to and indentifying a chain and its counterparites
@@ -67,7 +70,7 @@ type Chain struct {
 	timeout time.Duration
 	debug   bool
 
-	// stores facuet addresses that have been used reciently
+	// stores faucet addresses that have been used reciently
 	faucetAddrs map[string]time.Time
 }
 
@@ -397,8 +400,9 @@ func (c *Chain) Subscribe(query string) (<-chan ctypes.ResultEvent, context.Canc
 		return nil, nil, err
 	}
 
+	subscriber := fmt.Sprintf("%s-subscriber-%s", c.ChainID, suffix)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	eventChan, err := c.Client.Subscribe(ctx, fmt.Sprintf("%s-subscriber-%s", c.ChainID, suffix), query, 1000)
+	eventChan, err := c.Client.Subscribe(ctx, subscriber, query, 1000)
 	return eventChan, cancel, err
 }
 
@@ -411,7 +415,7 @@ func lightDir(home string) string {
 	return path.Join(home, "light")
 }
 
-// GetAddress returns the sdk.AccAddress associated with the configred key
+// GetAddress returns the sdk.AccAddress associated with the configured key
 func (c *Chain) GetAddress() (sdk.AccAddress, error) {
 	defer c.UseSDKContext()()
 	if c.address != nil {
@@ -683,14 +687,10 @@ func (c *Chain) GenerateConnHandshakeProof(height uint64) (clientState ibcexport
 // UpgradeChain submits and upgrade proposal using a zero'd out client state with an updated unbonding period.
 func (c *Chain) UpgradeChain(dst *Chain, plan *upgradetypes.Plan, deposit sdk.Coin,
 	unbondingPeriod time.Duration) error {
-	sh, err := NewSyncHeaders(c, dst)
-	if err != nil {
+	if _, _, err := UpdateLightClients(c, dst); err != nil {
 		return err
 	}
-	if err := sh.Updates(c, dst); err != nil {
-		return err
-	}
-	height := int64(sh.GetHeight(dst.ChainID))
+	height := int64(dst.MustGetLatestLightHeight())
 
 	clientStateRes, err := dst.QueryClientState(height)
 	if err != nil {

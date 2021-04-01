@@ -46,10 +46,7 @@ var eventFormat = "{eventType}.{eventAttribute}={value}"
 
 // QueryBalance returns the amount of coins in the relayer account
 func (c *Chain) QueryBalance(keyName string) (sdk.Coins, error) {
-	var (
-		err  error
-		addr sdk.AccAddress
-	)
+	var addr sdk.AccAddress
 	if keyName == "" {
 		addr = c.MustGetAddress()
 	} else {
@@ -60,6 +57,17 @@ func (c *Chain) QueryBalance(keyName string) (sdk.Coins, error) {
 		done := c.UseSDKContext()
 		addr = info.GetAddress()
 		done()
+	}
+	return c.QueryBalanceWithAddress(addr.String())
+}
+
+// QueryBalanceWithAddress returns the amount of coins in the relayer account with address as input
+func (c *Chain) QueryBalanceWithAddress(address string) (sdk.Coins, error) {
+	done := c.UseSDKContext()
+	addr, err := sdk.AccAddressFromBech32(address)
+	done()
+	if err != nil {
+		return nil, err
 	}
 
 	params := bankTypes.NewQueryAllBalancesRequest(addr, &querytypes.PageRequest{
@@ -571,7 +579,10 @@ func (c *Chain) QueryUnreceivedPackets(height uint64, seqs []uint64) ([]uint64, 
 		ChannelId:                 c.PathEnd.ChannelID,
 		PacketCommitmentSequences: seqs,
 	})
-	return res.Sequences, err
+	if err != nil {
+		return nil, err
+	}
+	return res.Sequences, nil
 }
 
 // QueryUnreceivedAcknowledgements returns a list of unrelayed packet acks
@@ -582,7 +593,10 @@ func (c *Chain) QueryUnreceivedAcknowledgements(height uint64, seqs []uint64) ([
 		ChannelId:          c.PathEnd.ChannelID,
 		PacketAckSequences: seqs,
 	})
-	return res.Sequences, err
+	if err != nil {
+		return nil, err
+	}
+	return res.Sequences, nil
 }
 
 // QueryTx takes a transaction hash and returns the transaction
@@ -687,15 +701,6 @@ func QueryLatestHeights(src, dst *Chain) (srch, dsth int64, err error) {
 	})
 	err = eg.Wait()
 	return
-}
-
-// QueryLatestHeader returns the latest header from the chain
-func (c *Chain) QueryLatestHeader() (out *tmclient.Header, err error) {
-	var h int64
-	if h, err = c.QueryLatestHeight(); err != nil {
-		return nil, err
-	}
-	return c.QueryHeaderAtHeight(h)
 }
 
 // QueryHeaderAtHeight returns the header at a given height
