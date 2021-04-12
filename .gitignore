@@ -1,4 +1,3 @@
-.DS_Store
 build/
 data/
 coverage.out
@@ -11,3 +10,4 @@ chain-code/
 two-chains/ibc-*
 two-chains/.relayer
 two-chains/*.log
+test/setup/valkeys/*.json

@@ -1,35 +1,12 @@
 # Changelog
 
-## v0.9.2
-
-**2021/03/29**
+## [Unreleased]
 
 ### Relayer
 
-* [\#478](https://github.com/cosmos/relayer/pull/478) Retry on DB failure due to concurrent access.
-* [\#471](https://github.com/cosmos/relayer/pull/471) Add a send command to send to a different address on the same chain.
-
-
-## v0.9.1
-
-**2021/03/26**
-
-### Relayer
-
+* [\#491](https://github.com/cosmos/relayer/pull/491) Add client parameter flags to allow governance to update the client if expiry or misbehaviour freezing occurs. 
+* [\#488](https://github.com/cosmos/relayer/pull/488) Fix state based relaying for acknowledgements.
 * [\#474](https://github.com/cosmos/relayer/pull/474) Fix validator set mismatch when updating IBC client.
-
-
-## v0.9.0
-
-**2021/03/23**
-
-### Relayer
-
-* [\#465](https://github.com/cosmos/relayer/pull/465) Fix light client error when getting the latest light header
-* [\#462](https://github.com/cosmos/relayer/pull/462) Refactor integration test setup to allow support for misbehaviour tests
-* [\#457](https://github.com/cosmos/relayer/pull/457) Simple misbehaviour monitoring
-* [\#464](https://github.com/cosmos/relayer/pull/464) Fix query balance response
-* [\#431](https://github.com/cosmos/relayer/pull/431) Refactor state based relaying to correctly construct the UpdateClient Msg on retries.
 * [\#456](https://github.com/cosmos/relayer/pull/456) Fix bug which incorrectly set the timeout on a transfer.
 * [\#455](https://github.com/cosmos/relayer/pull/455) Set default client parameter to allow governance to update the client if expiry or misbehaviour freezing occurs. 
 
