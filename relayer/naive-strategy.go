@@ -768,7 +768,11 @@ func relayPacketsFromResultBlockResults(src, dst *Chain, sequence uint64, res *c
 					rp.packetData = p.Value
 				}
 				if string(p.Key) == toHeightTag {
-					timeout, _ := strconv.ParseUint(strings.Split(string(p.Value), "-")[1], 10, 64)
+					timeout, err := clienttypes.ParseHeight(string(p.Value))
+					if err != nil {
+						return nil, nil, err
+					}
+
 					rp.timeout = timeout
 				}
 				if string(p.Key) == toTSTag {
@@ -793,7 +797,7 @@ func relayPacketsFromResultBlockResults(src, dst *Chain, sequence uint64, res *c
 
 				switch {
 				// If the packet has a timeout height, and it has been reached, return a timeout packet
-				case rp.timeout != 0 && block.GetHeight().GetRevisionHeight() >= rp.timeout:
+				case !rp.timeout.IsZero() && block.GetHeight().GTE(rp.timeout):
 					timeoutPackets = append(timeoutPackets, rp.timeoutPacket())
 				// If the packet has a timeout timestamp and it has been reached, return a timeout packet
 				case rp.timeoutStamp != 0 && block.GetTime().UnixNano() >= int64(rp.timeoutStamp):
