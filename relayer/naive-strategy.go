@@ -593,8 +593,7 @@ func relayEndBlockPacketFromSequence(src, dst *Chain, seq uint64) ([]sdk.Msg, []
 	case err != nil:
 		return nil, nil, err
 	case len(blockResults) == 0:
-		// NOTE: search the given seq in endblock instead
-		return nil, nil, fmt.Errorf("no block returned with query")
+		return nil, nil, fmt.Errorf("no blocks returned with query")
 	case len(blockResults) > 1:
 		return nil, nil, fmt.Errorf("more than one block returned with query")
 	}
@@ -606,7 +605,7 @@ func relayEndBlockPacketFromSequence(src, dst *Chain, seq uint64) ([]sdk.Msg, []
 	case len(rcvPackets) == 0 && len(timeoutPackets) == 0:
 		return nil, nil, fmt.Errorf("no relay msgs created from query response")
 	case len(rcvPackets)+len(timeoutPackets) > 1:
-		return nil, nil, fmt.Errorf("more than one relay msg found in tx query")
+		return nil, nil, fmt.Errorf("more than one relay msg found in block results query")
 	}
 
 	if len(rcvPackets) == 1 {
