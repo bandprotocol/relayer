@@ -1,6 +1,6 @@
 {
   "src": {
-    "chain-id": "bandchain",
+    "chain-id": "internal-laozi-testnet",
     "client-id": "",
     "connection-id": "",
     "channel-id": "",

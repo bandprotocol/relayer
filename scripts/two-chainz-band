@@ -1,5 +1,5 @@
 #!/bin/bash
-# two-chainz creates two gaiad chains and configures the relayer to 
+# two-chainz creates two gaiad chains and configures the relayer to
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 CHAIN_DATA="$(pwd)/data"
@@ -44,7 +44,7 @@ rm -rf $RELAYER_CONF &> /dev/null
 
 set -e
 
-band_chainid=bandchain
+band_chainid=internal-laozi-testnet
 consumer_chainid=consumer
 
 # echo "Generating band & bc configurations..."
@@ -66,12 +66,12 @@ rly config add-chains configs/band/chains
 
 SEED0="smile stem oven genius cave resource better lunar nasty moon company ridge brass rather supply used horn three panic put venue analyst leader comic"
 SEED1=$(jq -r '.mnemonic' $CHAIN_DATA/consumer/key_seed.json)
-echo "Key $(rly keys restore bandchain bandkey "$SEED0" --coin-type 494) imported from bandchain to relayer..."
+echo "Key $(rly keys restore internal-laozi-testnet bandkey "$SEED0" --coin-type 494) imported from bandchain to relayer..."
 echo "Key $(rly keys restore consumer conskey "$SEED1") imported from consumer to relayer..."
 
 rly config add-paths configs/band/paths
 
 echo "Creating light clients..."
 sleep 3
-rly light init bandchain -f
+rly light init internal-laozi-testnet -f
 rly light init consumer -f
