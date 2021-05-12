@@ -630,6 +630,37 @@ func (c *Chain) QueryTxs(height uint64, page, limit int, events []string) ([]*ct
 	return res.Txs, nil
 }
 
+// QueryBlockResults returns events in the BlockResults of a given height
+func (c *Chain) QueryBlockResults(height uint64, page, limit int, events []string) ([]*ctypes.ResultBlockResults, error) {
+	if len(events) == 0 {
+		return nil, errors.New("must declare at least one event to search")
+	}
+
+	if page <= 0 {
+		return nil, errors.New("page must greater than 0")
+	}
+
+	if limit <= 0 {
+		return nil, errors.New("limit must greater than 0")
+	}
+
+	resBlocks, err := c.Client.BlockSearch(context.Background(), strings.Join(events, " AND "), &page, &limit, "")
+	if err != nil {
+		return nil, err
+	}
+
+	var res []*ctypes.ResultBlockResults
+	for _, b := range resBlocks.Blocks {
+		r, err := c.Client.BlockResults(context.Background(), &b.Block.Height)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, r)
+	}
+
+	return res, nil
+}
+
 // QueryABCI is an affordance for querying the ABCI server associated with a chain
 // Similar to cliCtx.QueryABCI
 func (c *Chain) QueryABCI(req abci.RequestQuery) (res abci.ResponseQuery, err error) {
