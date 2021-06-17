@@ -1,7 +1,7 @@
 {
   "key": "bandkey",
-  "chain-id": "bandchain",
-  "rpc-addr": "http://localhost:26657",
+  "chain-id": "band-laozi-testnet1",
+  "rpc-addr": "http://rpc-laozi-testnet1.bandchain.org:26657",
   "account-prefix": "band",
   "gas": 200000,
   "gas-adjustment": 1.5,
