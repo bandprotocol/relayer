@@ -25,11 +25,11 @@ if ! [ -x "$(which $consumer_cmd)" ]; then
 fi
 
 # Ensure jq is installed
-if [[ ! -x "$(which jq)" ]]; then
-  echo "jq (a tool for parsing json in the command line) is required..."
-  echo "https://stedolan.github.io/jq/download/"
-  exit 1
-fi
+# if [[ ! -x "$(which jq)" ]]; then
+#   echo "jq (a tool for parsing json in the command line) is required..."
+#   echo "https://stedolan.github.io/jq/download/"
+#   exit 1
+# fi
 
 # Ensure user understands what will be deleted
 if [[ -d $CHAIN_DATA ]] && [[ ! "$1" == "skip" ]]; then
@@ -68,7 +68,7 @@ rly config init
 rly config add-chains configs/band/chains
 
 SEED0="smile stem oven genius cave resource better lunar nasty moon company ridge brass rather supply used horn three panic put venue analyst leader comic"
-SEED1=$(jq -r '.mnemonic' $CHAIN_DATA/key_seed.json)
+SEED1="gate wall until matter service smart attract inside music bring outer leader fluid ladder whisper uncle sand violin rib fall cart supreme hotel bonus"
 echo "Key $(rly keys restore $band_chainid $band_key "$SEED0" --coin-type 494) imported from bandchain to relayer..."
 echo "Key $(rly keys restore $consumer_chainid $consumer_key "$SEED1") imported from $consumer_chainid to relayer..."
 
