@@ -1,7 +1,7 @@
 #!/bin/bash
 # two-chainz creates two gaiad chains and configures the relayer to 
 
-band_chainid=band-laozi-testnet1
+band_chainid=band-laozi-testnet2
 band_key=bandkey
 consumer_chainid=consumer
 consumer_key=conskey

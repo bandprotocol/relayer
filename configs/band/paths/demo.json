@@ -1,11 +1,11 @@
 {
   "src": {
-    "chain-id": "band-laozi-testnet1",
+    "chain-id": "band-laozi-testnet2",
     "client-id": "",
     "connection-id": "",
     "channel-id": "",
     "port-id": "oracle",
-    "version": "ics20-1",
+    "version": "bandchain-1",
     "order": "unordered"
   },
   "dst": {
@@ -14,7 +14,7 @@
     "connection-id": "",
     "channel-id": "",
     "port-id": "consuming",
-    "version": "ics20-1",
+    "version": "bandchain-1",
     "order": "unordered"
   },
   "strategy": { "type": "naive" }
