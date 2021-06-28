@@ -1,7 +1,7 @@
 {
   "key": "conskey",
-  "chain-id": "consumer",
-  "rpc-addr": "http://localhost:26557",
+  "chain-id": "starportconsumer",
+  "rpc-addr": "http://localhost:26657",
   "account-prefix": "cosmos",
   "gas": 200000,
   "gas-adjustment": 1.5,
